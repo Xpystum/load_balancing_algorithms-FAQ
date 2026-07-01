@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Алгоритмы балансировки нагрузки — интерактивный разбор</title>
+<meta name="description" content="Шесть алгоритмов балансировки нагрузки с интерактивными демонстрациями: Round-Robin, Weighted RR, Least Connections, Least Response Time, IP Hash, Random. Объяснения, формулы и сравнение для системного дизайна.">
+<meta name="theme-color" content="#fbfaf8">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Алгоритмы балансировки нагрузки — интерактивный разбор">
+<meta property="og:description" content="Шесть способов распределить трафик между серверами, с живыми демонстрациями. Round-Robin, Weighted RR, Least Connections, Least Response Time, IP Hash, Random.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#FBFAF8; --surface:#FFFFFF; --surface-2:#F3F1EC; --inset:#F7F5F0;
+  --ink:#1B1E24; --ink-2:#565B66; --ink-3:#8A8F99;
+  --line:#E7E4DC; --line-2:#D4D0C6;
+  --wire:#1F5C8C; --wire-bg:#E9F1F8; --wire-line:#2E6FA3;
+  --good:#2E7D52; --good-bg:#E6F2EB;
+  --bad:#B4452F;  --bad-bg:#F8EAE5;
+  --warn:#946410; --warn-bg:#F8F0DD;
+  --adv:#5A4AB5;  --adv-bg:#EDEBFB;
+  --header-h:56px; --maxw:1000px; --radius:12px;
+  --shadow:0 1px 2px rgba(27,30,36,.04),0 8px 24px rgba(27,30,36,.05);
+}
+html[data-theme="dark"]{
+  --bg:#13171D; --surface:#1A1F27; --surface-2:#222831; --inset:#1E242C;
+  --ink:#E9E7E1; --ink-2:#ABB0BA; --ink-3:#767C87;
+  --line:#2A3039; --line-2:#39404B;
+  --wire:#79B4E8; --wire-bg:#16283A; --wire-line:#5B9BD4;
+  --good:#62C28E; --good-bg:#14281E;
+  --bad:#E68A6F;  --bad-bg:#2E1A14;
+  --warn:#DEAC4E; --warn-bg:#2C2310;
+  --adv:#A294EE;  --adv-bg:#1D1933;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.35);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:calc(var(--header-h) + 64px)}
+body{
+  margin:0;background:var(--bg);color:var(--ink);
+  font-family:"IBM Plex Sans",system-ui,sans-serif;font-weight:400;
+  line-height:1.7;-webkit-font-smoothing:antialiased;
+  transition:background .25s,color .25s;
+}
+.wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px}
+.mono{font-family:"IBM Plex Mono",ui-monospace,monospace}
+
+/* ---- sticky header ---- */
+.topbar{
+  position:sticky;top:0;z-index:50;height:var(--header-h);
+  background:color-mix(in srgb,var(--bg) 86%,transparent);
+  backdrop-filter:saturate(140%) blur(10px);
+  border-bottom:1px solid var(--line);
+}
+.topbar .row{display:flex;align-items:center;justify-content:space-between;height:100%}
+.brand{display:flex;align-items:center;gap:10px;font-weight:600;font-size:15px;letter-spacing:-.01em}
+.brand .dot{width:9px;height:9px;border-radius:50%;background:var(--wire);box-shadow:0 0 0 4px var(--wire-bg)}
+.brand .lo{color:var(--ink-3);font-weight:400}
+.tgl{
+  width:38px;height:38px;border-radius:10px;border:1px solid var(--line-2);
+  background:var(--surface);color:var(--ink-2);cursor:pointer;display:grid;place-items:center;
+  transition:background .15s,border-color .15s,color .15s;
+}
+.tgl:hover{background:var(--surface-2);color:var(--ink)}
+.tgl svg{width:18px;height:18px}
+.tgl .moon{display:none}
+html[data-theme="dark"] .tgl .sun{display:none}
+html[data-theme="dark"] .tgl .moon{display:block}
+
+/* ---- hero ---- */
+.hero{padding:72px 0 36px}
+.eyebrow{
+  font-family:"IBM Plex Mono",monospace;font-size:12.5px;font-weight:500;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--wire);margin:0 0 18px;
+}
+.hero h1{
+  font-size:clamp(32px,5.4vw,52px);line-height:1.05;font-weight:700;letter-spacing:-.025em;
+  margin:0 0 18px;max-width:16ch;
+}
+.hero p.lead{font-size:clamp(16px,2.1vw,19px);color:var(--ink-2);max-width:60ch;margin:0 0 40px;font-weight:300}
+
+/* hero traffic visual */
+.stage{
+  background:var(--surface);border:1px solid var(--line);border-radius:16px;
+  padding:8px;box-shadow:var(--shadow);overflow:hidden;
+}
+.stage svg{display:block;width:100%;height:auto}
+.s-node{fill:var(--surface-2);stroke:var(--line-2)}
+.s-node.lb{fill:var(--wire-bg);stroke:var(--wire-line)}
+.s-lbl{fill:var(--ink);font:500 14px "IBM Plex Sans",sans-serif}
+.s-sub{fill:var(--ink-3);font:400 11.5px "IBM Plex Mono",monospace}
+.s-wire{stroke:var(--line-2);stroke-width:1.5;fill:none}
+.s-dot{fill:var(--wire)}
+
+/* ---- section scaffolding ---- */
+section{padding:30px 0}
+.sec-head{display:flex;align-items:baseline;gap:14px;margin:0 0 8px}
+.sec-num{font-family:"IBM Plex Mono",monospace;font-size:13px;color:var(--ink-3);font-weight:500}
+h2{font-size:clamp(22px,3vw,30px);font-weight:600;letter-spacing:-.02em;margin:0}
+.sec-intro{color:var(--ink-2);max-width:64ch;margin:14px 0 0}
+.divider{height:1px;background:var(--line);border:0;margin:6px 0}
+
+/* ---- nav chips ---- */
+.nav{
+  position:sticky;top:var(--header-h);z-index:40;
+  background:color-mix(in srgb,var(--bg) 90%,transparent);
+  backdrop-filter:blur(8px);border-bottom:1px solid var(--line);
+}
+.nav .scroll{display:flex;gap:8px;overflow-x:auto;padding:12px 0;scrollbar-width:none}
+.nav .scroll::-webkit-scrollbar{display:none}
+.chip{
+  flex:0 0 auto;font-family:"IBM Plex Mono",monospace;font-size:12.5px;font-weight:500;
+  padding:6px 13px;border-radius:20px;border:1px solid var(--line-2);
+  background:var(--surface);color:var(--ink-2);text-decoration:none;white-space:nowrap;
+  transition:all .15s;
+}
+.chip:hover{border-color:var(--wire-line);color:var(--wire)}
+.chip.active{background:var(--wire);border-color:var(--wire);color:#fff}
+html[data-theme="dark"] .chip.active{color:#0f1419}
+
+/* ---- algorithm card ---- */
+.algo{
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  padding:28px;box-shadow:var(--shadow);
+}
+.algo + .algo{margin-top:28px}
+.algo-top{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.algo-name{font-size:22px;font-weight:600;letter-spacing:-.015em;margin:0}
+.algo-tag{font-size:13.5px;color:var(--ink-2);margin:4px 0 0}
+.badge{
+  font-family:"IBM Plex Mono",monospace;font-size:11.5px;font-weight:500;letter-spacing:.04em;
+  padding:5px 11px;border-radius:7px;white-space:nowrap;border:1px solid transparent;
+}
+.b-simple{background:var(--good-bg);color:var(--good);border-color:color-mix(in srgb,var(--good) 30%,transparent)}
+.b-smart{background:var(--wire-bg);color:var(--wire);border-color:color-mix(in srgb,var(--wire) 35%,transparent)}
+.b-sticky{background:var(--warn-bg);color:var(--warn);border-color:color-mix(in srgb,var(--warn) 32%,transparent)}
+.b-adv{background:var(--adv-bg);color:var(--adv);border-color:color-mix(in srgb,var(--adv) 32%,transparent)}
+
+.formula{
+  font-family:"IBM Plex Mono",monospace;font-size:13.5px;color:var(--wire);
+  background:var(--inset);border:1px solid var(--line);border-radius:8px;
+  padding:11px 14px;margin:20px 0 16px;overflow-x:auto;
+}
+.explain{color:var(--ink-2);margin:0 0 22px;font-size:15px}
+.explain code{font-family:"IBM Plex Mono",monospace;font-size:13px;background:var(--inset);padding:1px 6px;border-radius:5px;color:var(--ink)}
+
+/* demo */
+.demo{border:1px solid var(--line);border-radius:10px;padding:18px;background:var(--inset)}
+.servers{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
+.srv{background:var(--surface);border:1px solid var(--line-2);border-radius:10px;padding:12px 10px;text-align:center;transition:border-color .2s,background .2s}
+.srv.hit{border-color:var(--good);background:var(--good-bg)}
+.srv.busy{border-color:var(--bad);background:var(--bad-bg)}
+.srv.wt{border-color:var(--wire-line)}
+.srv-name{font-size:12.5px;font-weight:500;color:var(--ink);margin-bottom:6px}
+.srv-num{font-family:"IBM Plex Mono",monospace;font-size:26px;font-weight:600;color:var(--ink-2);line-height:1}
+.srv.hit .srv-num{color:var(--good)}
+.srv.busy .srv-num{color:var(--bad)}
+.srv-sub{font-family:"IBM Plex Mono",monospace;font-size:10.5px;color:var(--ink-3);margin-top:5px}
+.srv-wt{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--wire);font-weight:500;margin-top:4px}
+.log{
+  font-family:"IBM Plex Mono",monospace;font-size:12px;line-height:1.7;color:var(--ink-2);
+  background:var(--surface);border:1px solid var(--line);border-radius:8px;
+  padding:10px 12px;min-height:66px;margin-bottom:14px;
+}
+.log .g{color:var(--good);font-weight:500}
+.log .b{color:var(--wire);font-weight:500}
+.log .r{color:var(--bad)}
+.controls{display:flex;flex-wrap:wrap;gap:8px}
+.btn{
+  font-family:"IBM Plex Sans",sans-serif;font-size:13.5px;font-weight:500;
+  padding:8px 15px;border-radius:9px;border:1px solid var(--line-2);
+  background:var(--surface);color:var(--ink);cursor:pointer;transition:all .15s;
+}
+.btn:hover{background:var(--surface-2)}
+.btn:active{transform:scale(.98)}
+.btn.primary{border-color:var(--good);color:var(--good)}
+.btn.primary:hover{background:var(--good-bg)}
+.btn.bad{border-color:var(--bad);color:var(--bad)}
+.btn.bad:hover{background:var(--bad-bg)}
+.btn.accent{border-color:var(--wire-line);color:var(--wire)}
+.btn.accent:hover{background:var(--wire-bg)}
+
+/* fit cards */
+.fit{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:20px}
+.fit-card{border:1px solid var(--line);border-radius:9px;padding:13px 15px;background:var(--surface)}
+.fit-card.good{border-color:color-mix(in srgb,var(--good) 35%,transparent)}
+.fit-card.bad{border-color:color-mix(in srgb,var(--bad) 35%,transparent)}
+.fit-title{font-family:"IBM Plex Mono",monospace;font-size:11.5px;font-weight:500;letter-spacing:.05em;margin-bottom:6px;display:flex;align-items:center;gap:7px}
+.fit-card.good .fit-title{color:var(--good)}
+.fit-card.bad .fit-title{color:var(--bad)}
+.fit-title svg{width:15px;height:15px}
+.fit-text{font-size:13.5px;color:var(--ink-2)}
+
+/* comparison table */
+.table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+table{border-collapse:collapse;width:100%;min-width:680px;background:var(--surface)}
+th,td{text-align:left;padding:13px 16px;font-size:13.5px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-family:"IBM Plex Mono",monospace;font-size:11.5px;font-weight:500;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-3);background:var(--inset)}
+td:first-child{font-weight:600;color:var(--ink)}
+tr:last-child td{border-bottom:0}
+tbody tr:hover{background:var(--inset)}
+.yes{color:var(--good);font-weight:500}
+.no{color:var(--ink-3)}
+
+/* schema diagram */
+.schema{margin:22px 0;border:1px solid var(--line);border-radius:10px;background:var(--inset);padding:15px 16px 13px}
+.schema-lbl{font-family:"IBM Plex Mono",monospace;font-size:11px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);margin-bottom:10px}
+.schema svg{display:block;width:100%;height:auto}
+.schema-cap{font-size:13.5px;color:var(--ink-2);margin:11px 2px 0;line-height:1.55}
+.schema-cap b{color:var(--ink);font-weight:600}
+.dgm .box{fill:var(--surface);stroke:var(--line-2);stroke-width:1}
+.dgm .lb{fill:var(--wire-bg);stroke:var(--wire-line);stroke-width:1.2}
+.dgm .pick{fill:var(--good-bg);stroke:var(--good);stroke-width:1.4}
+.dgm .busy{fill:var(--bad-bg);stroke:var(--bad);stroke-width:1.2}
+.dgm .wire{stroke:var(--line-2);stroke-width:1.5;fill:none}
+.dgm .pwire{stroke:var(--good);stroke-width:2;fill:none}
+.dgm .fwire{stroke:var(--ink-3);stroke-width:1.1;stroke-dasharray:4 4;fill:none}
+.dgm .ah{fill:none;stroke:var(--line-2);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.dgm .ah-g{stroke:var(--good)}
+.dgm .t{fill:var(--ink);font:500 13px "IBM Plex Sans",sans-serif}
+.dgm .s{fill:var(--ink-3);font:400 11px "IBM Plex Mono",monospace}
+.dgm .gs{fill:var(--good);font:500 11px "IBM Plex Mono",monospace}
+.dgm .rs{fill:var(--bad);font:500 11px "IBM Plex Mono",monospace}
+
+/* decision section */
+.decide{display:flex;flex-direction:column;gap:10px;margin-top:8px}
+.d-row{display:flex;align-items:center;gap:16px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 18px;box-shadow:var(--shadow)}
+.d-cond{flex:1;font-size:14.5px;color:var(--ink-2)}
+.d-cond b{color:var(--ink);font-weight:600}
+.d-arrow{color:var(--ink-3);flex:0 0 auto}
+.d-pick{flex:0 0 auto;font-family:"IBM Plex Mono",monospace;font-size:13px;font-weight:500;color:var(--wire);background:var(--wire-bg);border:1px solid color-mix(in srgb,var(--wire) 30%,transparent);padding:6px 12px;border-radius:8px;white-space:nowrap}
+
+/* callout */
+.callout{background:var(--wire-bg);border:1px solid color-mix(in srgb,var(--wire) 28%,transparent);border-radius:var(--radius);padding:20px 22px;margin-top:24px}
+.callout p{margin:0;font-size:14.5px;color:var(--ink)}
+.callout p + p{margin-top:10px}
+.callout strong{color:var(--wire)}
+
+/* footer */
+footer{border-top:1px solid var(--line);margin-top:48px;padding:36px 0 56px}
+.foot{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px;color:var(--ink-3);font-size:13px}
+.totop{font-family:"IBM Plex Mono",monospace;font-size:12.5px;color:var(--ink-2);text-decoration:none;border:1px solid var(--line-2);border-radius:8px;padding:7px 13px;transition:all .15s}
+.totop:hover{border-color:var(--wire-line);color:var(--wire)}
+
+@media (max-width:640px){
+  .wrap{padding:0 18px}
+  .hero{padding:48px 0 28px}
+  .algo{padding:20px}
+  .servers{gap:7px}
+  .srv-num{font-size:22px}
+  .fit{grid-template-columns:1fr}
+  .d-row{flex-wrap:wrap}
+  .d-arrow{display:none}
+}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *{transition:none!important}
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap row">
+    <div class="brand"><span class="dot"></span>Балансировка нагрузки <span class="lo">/ системный дизайн</span></div>
+    <button class="tgl" id="themeBtn" aria-label="Переключить тему" title="Светлая / тёмная тема">
+      <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/></svg>
+      <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+    </button>
+  </div>
+</header>
+
+<div class="hero wrap">
+  <p class="eyebrow">Системный дизайн · Highload</p>
+  <h1>Алгоритмы балансировки нагрузки</h1>
+  <p class="lead">Шесть способов распределить трафик между серверами — с интерактивными демонстрациями. Нажимайте кнопки, отправляйте запросы и смотрите, как каждый алгоритм принимает решение, куда направить запрос.</p>
+
+  <div class="stage">
+    <svg viewBox="0 0 800 220" role="img" aria-label="Схема: клиент отправляет запросы на балансировщик, который распределяет их между тремя серверами">
+      <defs>
+        <marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M2 1L8 5L2 9" fill="none" stroke="var(--line-2)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </marker>
+      </defs>
+      <!-- wires -->
+      <line class="s-wire" x1="178" y1="110" x2="332" y2="110" marker-end="url(#ah)"/>
+      <line class="s-wire" x1="486" y1="110" x2="592" y2="56"  marker-end="url(#ah)"/>
+      <line class="s-wire" x1="486" y1="110" x2="592" y2="110" marker-end="url(#ah)"/>
+      <line class="s-wire" x1="486" y1="110" x2="592" y2="164" marker-end="url(#ah)"/>
+      <!-- client -->
+      <rect class="s-node" x="40" y="86" width="138" height="48" rx="10"/>
+      <text class="s-lbl" x="109" y="107" text-anchor="middle">Клиенты</text>
+      <text class="s-sub" x="109" y="124" text-anchor="middle">запросы</text>
+      <!-- LB -->
+      <rect class="s-node lb" x="362" y="80" width="124" height="60" rx="12"/>
+      <text class="s-lbl" x="424" y="105" text-anchor="middle">Балансировщик</text>
+      <text class="s-sub" x="424" y="122" text-anchor="middle">распределяет</text>
+      <!-- servers -->
+      <rect class="s-node" x="594" y="34" width="166" height="44" rx="10"/>
+      <text class="s-lbl" x="677" y="61" text-anchor="middle">Сервер 1</text>
+      <rect class="s-node" x="594" y="88" width="166" height="44" rx="10"/>
+      <text class="s-lbl" x="677" y="115" text-anchor="middle">Сервер 2</text>
+      <rect class="s-node" x="594" y="142" width="166" height="44" rx="10"/>
+      <text class="s-lbl" x="677" y="169" text-anchor="middle">Сервер 3</text>
+      <g id="traffic"></g>
+    </svg>
+  </div>
+</div>
+
+<nav class="nav">
+  <div class="wrap scroll" id="chips">
+    <a class="chip" href="#intro">Зачем нужна</a>
+    <a class="chip" href="#round-robin">Round-Robin</a>
+    <a class="chip" href="#weighted-rr">Weighted RR</a>
+    <a class="chip" href="#least-connections">Least Connections</a>
+    <a class="chip" href="#least-response-time">Least Response Time</a>
+    <a class="chip" href="#ip-hash">IP Hash</a>
+    <a class="chip" href="#random">Random</a>
+    <a class="chip" href="#compare">Сравнение</a>
+    <a class="chip" href="#choose">Как выбирать</a>
+  </div>
+</nav>
+
+<main class="wrap">
+
+  <section id="intro">
+    <div class="sec-head"><span class="sec-num">00</span><h2>Зачем нужна балансировка</h2></div>
+    <hr class="divider">
+    <p class="sec-intro">Когда один сервер перестаёт справляться с нагрузкой, трафик распределяют между несколькими одинаковыми серверами. Балансировщик стоит перед ними и решает, на какой сервер отправить каждый входящий запрос. Алгоритм этого решения и определяет, насколько равномерно ляжет нагрузка и не перегрузится ли один из серверов, пока другие простаивают.</p>
+    <div class="callout">
+      <p><strong>Главный вопрос при выборе алгоритма:</strong> запросы одинаковые по времени выполнения или разные? От этого зависит почти всё. Для коротких однотипных запросов хватает простого Round-Robin; для долгих и разных по тяжести нужен алгоритм, который следит за реальной загрузкой серверов.</p>
+    </div>
+  </section>
+
+  <!-- ROUND ROBIN -->
+  <section id="round-robin">
+    <div class="sec-head"><span class="sec-num">01</span><h2>Round-Robin</h2></div>
+    <hr class="divider">
+    <div class="algo">
+      <div class="algo-top">
+        <div>
+          <p class="algo-name">Round-Robin</p>
+          <p class="algo-tag">Запросы распределяются строго по кругу</p>
+        </div>
+        <span class="badge b-simple">простой</span>
+      </div>
+      <div class="formula">server = (current_index++) % server_count</div>
+      <p class="explain">Каждый новый запрос идёт на следующий сервер по очереди: 1 → 2 → 3 → 1 → 2 → 3. Никакой логики, просто очередь. Работает идеально, когда все запросы одинаковые по весу, а серверы одинаковые по мощности.</p>
+      <div class="schema">
+        <div class="schema-lbl">Как это работает</div>
+        <svg class="dgm" viewBox="0 0 680 196" role="img" aria-label="Схема Round-Robin: запросы по очереди">
+          <defs><marker id="m1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path class="ah" d="M2 1L8 5L2 9"/></marker></defs>
+          <line class="wire" x1="106" y1="98" x2="214" y2="98" marker-end="url(#m1)"/>
+          <line class="wire" x1="378" y1="98" x2="484" y2="38" marker-end="url(#m1)"/>
+          <line class="wire" x1="378" y1="98" x2="484" y2="98" marker-end="url(#m1)"/>
+          <line class="wire" x1="378" y1="98" x2="484" y2="158" marker-end="url(#m1)"/>
+          <rect class="box" x="8" y="76" width="96" height="44" rx="9"/>
+          <text class="t" x="56" y="102" text-anchor="middle">Запрос</text>
+          <rect class="lb" x="216" y="66" width="160" height="64" rx="11"/>
+          <text class="t" x="296" y="92" text-anchor="middle">Round-Robin</text>
+          <text class="s" x="296" y="110" text-anchor="middle">i = (i+1) % N</text>
+          <rect class="box" x="486" y="16" width="186" height="44" rx="9"/>
+          <text class="t" x="510" y="35">Сервер 1</text>
+          <text class="s" x="510" y="50">получает 1, 4, 7…</text>
+          <rect class="box" x="486" y="76" width="186" height="44" rx="9"/>
+          <text class="t" x="510" y="95">Сервер 2</text>
+          <text class="s" x="510" y="110">получает 2, 5, 8…</text>
+          <rect class="box" x="486" y="136" width="186" height="44" rx="9"/>
+          <text class="t" x="510" y="155">Сервер 3</text>
+          <text class="s" x="510" y="170">получает 3, 6, 9…</text>
+        </svg>
+        <p class="schema-cap"><b>Суть:</b> балансировщик хранит лишь указатель на следующий сервер и сдвигает его по кругу — решение за O(1). Реальную загрузку серверов он при этом не видит.</p>
+      </div>
+      <div class="demo">
+        <div class="servers">
+          <div class="srv" id="rr-s0"><div class="srv-name">Сервер 1</div><div class="srv-num" id="rr-c0">0</div><div class="srv-sub">запросов</div></div>
+          <div class="srv" id="rr-s1"><div class="srv-name">Сервер 2</div><div class="srv-num" id="rr-c1">0</div><div class="srv-sub">запросов</div></div>
+          <div class="srv" id="rr-s2"><div class="srv-name">Сервер 3</div><div class="srv-num" id="rr-c2">0</div><div class="srv-sub">запросов</div></div>
+        </div>
+        <div class="log" id="rr-log">Нажмите «Отправить запрос» — увидите, как они идут строго по очереди.</div>
+        <div class="controls">
+          <button class="btn primary" onclick="rrSend()">Отправить запрос</button>
+          <button class="btn" onclick="rrBurst()">×10 запросов</button>
+          <button class="btn" onclick="rrReset()">Сбросить</button>
+        </div>
+      </div>
+      <div class="fit">
+        <div class="fit-card good"><div class="fit-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>подходит</div><div class="fit-text">REST API с равными по весу запросами, статичный контент, однородный кластер</div></div>
+        <div class="fit-card bad"><div class="fit-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>не подходит</div><div class="fit-text">Запросы разной тяжести (загрузка файла vs ping), серверы разной мощности</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- WEIGHTED RR -->
+  <section id="weighted-rr">
+    <div class="sec-head"><span class="sec-num">02</span><h2>Weighted Round-Robin</h2></div>
+    <hr class="divider">
+    <div class="algo">
+      <div class="algo-top">
+        <div>
+          <p class="algo-name">Weighted Round-Robin</p>
+          <p class="algo-tag">Round-Robin, но с весами для каждого сервера</p>
+        </div>
+        <span class="badge b-simple">простой</span>
+      </div>
+      <div class="formula">сервер с весом 3 получает 3 запроса на каждый 1 у сервера с весом 1</div>
+      <p class="explain">Каждому серверу назначается вес, обычно пропорционально мощности. Сервер с весом 3 получит втрое больше трафика. Используют, когда железо разное: один сервер на 64 ГБ RAM, другой на 16 ГБ.</p>
+      <div class="schema">
+        <div class="schema-lbl">Как это работает</div>
+        <svg class="dgm" viewBox="0 0 680 196" role="img" aria-label="Схема Weighted Round-Robin: доля по весам">
+          <defs><marker id="m2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path class="ah" d="M2 1L8 5L2 9"/></marker></defs>
+          <line class="wire" x1="106" y1="98" x2="214" y2="98" marker-end="url(#m2)"/>
+          <line class="wire" x1="378" y1="98" x2="484" y2="38" marker-end="url(#m2)" style="stroke-width:4.5"/>
+          <line class="wire" x1="378" y1="98" x2="484" y2="98" marker-end="url(#m2)" style="stroke-width:2.6"/>
+          <line class="wire" x1="378" y1="98" x2="484" y2="158" marker-end="url(#m2)" style="stroke-width:1.2"/>
+          <rect class="box" x="8" y="76" width="96" height="44" rx="9"/>
+          <text class="t" x="56" y="102" text-anchor="middle">Запрос</text>
+          <rect class="lb" x="216" y="66" width="160" height="64" rx="11"/>
+          <text class="t" x="296" y="92" text-anchor="middle">Weighted RR</text>
+          <text class="s" x="296" y="110" text-anchor="middle">по весам</text>
+          <rect class="box" x="486" y="16" width="186" height="44" rx="9"/>
+          <text class="t" x="510" y="35">Сервер 1</text>
+          <text class="s" x="510" y="50">вес 3 · ≈50%</text>
+          <rect class="box" x="486" y="76" width="186" height="44" rx="9"/>
+          <text class="t" x="510" y="95">Сервер 2</text>
+          <text class="s" x="510" y="110">вес 2 · ≈33%</text>
+          <rect class="box" x="486" y="136" width="186" height="44" rx="9"/>
+          <text class="t" x="510" y="155">Сервер 3</text>
+          <text class="s" x="510" y="170">вес 1 · ≈17%</text>
+        </svg>
+        <p class="schema-cap"><b>Суть:</b> толщина стрелки = доля трафика. Веса задают вручную, обычно пропорционально мощности сервера.</p>
+      </div>
+      <div class="demo">
+        <div class="servers">
+          <div class="srv wt" id="wrr-s0"><div class="srv-name">Сервер 1</div><div class="srv-num" id="wrr-c0">0</div><div class="srv-sub">запросов</div><div class="srv-wt">вес: 3</div></div>
+          <div class="srv wt" id="wrr-s1"><div class="srv-name">Сервер 2</div><div class="srv-num" id="wrr-c1">0</div><div class="srv-sub">запросов</div><div class="srv-wt">вес: 2</div></div>
+          <div class="srv wt" id="wrr-s2"><div class="srv-name">Сервер 3</div><div class="srv-num" id="wrr-c2">0</div><div class="srv-sub">запросов</div><div class="srv-wt">вес: 1</div></div>
+        </div>
+        <div class="log" id="wrr-log">Вес 3 : 2 : 1 — сервер 1 получит половину всего трафика.</div>
+        <div class="controls">
+          <button class="btn primary" onclick="wrrSend()">Отправить запрос</button>
+          <button class="btn" onclick="wrrBurst()">×12 запросов</button>
+          <button class="btn" onclick="wrrReset()">Сбросить</button>
+        </div>
+      </div>
+      <div class="fit">
+        <div class="fit-card good"><div class="fit-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>подходит</div><div class="fit-text">Гетерогенный кластер: серверы разной мощности, постепенная замена железа</div></div>
+        <div class="fit-card bad"><div class="fit-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>не подходит</div><div class="fit-text">Запросы с сильно разным временем выполнения — мощный сервер всё равно перегрузится</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- LEAST CONNECTIONS -->
+  <section id="least-connections">
+    <div class="sec-head"><span class="sec-num">03</span><h2>Least Connections</h2></div>
+    <hr class="divider">
+    <div class="algo">
+      <div class="algo-top">
+        <div>
+          <p class="algo-name">Least Connections</p>
+          <p class="algo-tag">Запрос идёт на сервер с наименьшим числом активных соединений</p>
+        </div>
+        <span class="badge b-smart">умный</span>
+      </div>
+      <div class="formula">server = argmin(active_connections[i])</div>
+      <p class="explain">Балансировщик постоянно следит, сколько активных соединений у каждого сервера. Новый запрос идёт туда, где их меньше всего. Если сервер завис с тяжёлыми долгими запросами — новые к нему не пойдут.</p>
+      <div class="schema">
+        <div class="schema-lbl">Как это работает</div>
+        <svg class="dgm" viewBox="0 0 680 196" role="img" aria-label="Схема Least Connections: выбор наименее загруженного">
+          <defs>
+            <marker id="m3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path class="ah" d="M2 1L8 5L2 9"/></marker>
+            <marker id="m3g" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path class="ah ah-g" d="M2 1L8 5L2 9"/></marker>
+          </defs>
+          <line class="wire" x1="106" y1="98" x2="214" y2="98" marker-end="url(#m3)"/>
+          <line class="fwire" x1="378" y1="98" x2="484" y2="38" marker-end="url(#m3)"/>
+          <line class="fwire" x1="378" y1="98" x2="484" y2="98" marker-end="url(#m3)"/>
+          <line class="pwire" x1="378" y1="98" x2="484" y2="158" marker-end="url(#m3g)"/>
+          <rect class="box" x="8" y="76" width="96" height="44" rx="9"/>
+          <text class="t" x="56" y="102" text-anchor="middle">Запрос</text>
+          <rect class="lb" x="216" y="66" width="160" height="64" rx="11"/>
+          <text class="t" x="296" y="92" text-anchor="middle">Least Conn</text>
+          <text class="s" x="296" y="110" text-anchor="middle">argmin(conn)</text>
+          <rect class="box" x="486" y="16" width="186" height="44" rx="9"/>
+          <text class="t" x="510" y="35">Сервер 1</text>
+          <text class="s" x="510" y="50">2 соединения</text>
+          <rect class="busy" x="486" y="76" width="186" height="44" rx="9"/>
+          <text class="t" x="510" y="95">Сервер 2</text>
+          <text class="rs" x="510" y="110">5 — перегружен</text>
+          <rect class="pick" x="486" y="136" width="186" height="44" rx="9"/>
+          <text class="t" x="510" y="155">Сервер 3</text>
+          <text class="gs" x="510" y="170">1 ✓ выбран</text>
+        </svg>
+        <p class="schema-cap"><b>Суть:</b> балансировщик опрашивает счётчики активных соединений и направляет запрос туда, где их меньше всего.</p>
+      </div>
+      <div class="demo">
+        <div class="servers">
+          <div class="srv" id="lc-s0"><div class="srv-name">Сервер 1</div><div class="srv-num" id="lc-c0">0</div><div class="srv-sub">активных</div></div>
+          <div class="srv" id="lc-s1"><div class="srv-name">Сервер 2</div><div class="srv-num" id="lc-c1">0</div><div class="srv-sub">активных</div></div>
+          <div class="srv" id="lc-s2"><div class="srv-name">Сервер 3</div><div class="srv-num" id="lc-c2">0</div><div class="srv-sub">активных</div></div>
+        </div>
+        <div class="log" id="lc-log">Нажмите «Загрузить сервер 2», затем «Новый запрос» — увидите, как балансировщик его обходит.</div>
+        <div class="controls">
+          <button class="btn primary" onclick="lcSend()">Новый запрос</button>
+          <button class="btn bad" onclick="lcLoad()">Загрузить сервер 2 (+5)</button>
+          <button class="btn" onclick="lcFree()">Завершить соединение</button>
+          <button class="btn" onclick="lcReset()">Сбросить</button>
+        </div>
+      </div>
+      <div class="fit">
+        <div class="fit-card good"><div class="fit-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>подходит</div><div class="fit-text">Долгие соединения: WebSocket, стриминг, загрузка файлов, долгие SQL-запросы</div></div>
+        <div class="fit-card bad"><div class="fit-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>не подходит</div><div class="fit-text">Очень короткие запросы — накладные расходы на подсчёт соединений не окупаются</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- LEAST RESPONSE TIME -->
+  <section id="least-response-time">
+    <div class="sec-head"><span class="sec-num">04</span><h2>Least Response Time</h2></div>
+    <hr class="divider">
+    <div class="algo">
+      <div class="algo-top">
+        <div>
+          <p class="algo-name">Least Response Time</p>
+          <p class="algo-tag">Учитывает и нагрузку, и скорость ответа сервера</p>
+        </div>
+        <span class="badge b-adv">продвинутый</span>
+      </div>
+      <div class="formula">score = active_connections × avg_response_time → выбираем min(score)</div>
+      <p class="explain">Самый умный из распространённых алгоритмов. Балансировщик смотрит на два параметра сразу: число активных соединений и среднее время ответа. Быстрый, но уже загруженный сервер может проиграть медленному, но свободному. Встречается в HAProxy, Envoy, NGINX Plus.</p>
+      <div class="schema">
+        <div class="schema-lbl">Как это работает</div>
+        <svg class="dgm" viewBox="0 0 680 196" role="img" aria-label="Схема Least Response Time: учёт загрузки и скорости">
+          <defs>
+            <marker id="m4" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path class="ah" d="M2 1L8 5L2 9"/></marker>
+            <marker id="m4g" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path class="ah ah-g" d="M2 1L8 5L2 9"/></marker>
+          </defs>
+          <line class="wire" x1="106" y1="98" x2="214" y2="98" marker-end="url(#m4)"/>
+          <line class="fwire" x1="378" y1="98" x2="484" y2="38" marker-end="url(#m4)"/>
+          <line class="fwire" x1="378" y1="98" x2="484" y2="98" marker-end="url(#m4)"/>
+          <line class="pwire" x1="378" y1="98" x2="484" y2="158" marker-end="url(#m4g)"/>
+          <rect class="box" x="8" y="76" width="96" height="44" rx="9"/>
+          <text class="t" x="56" y="102" text-anchor="middle">Запрос</text>
+          <rect class="lb" x="216" y="66" width="160" height="64" rx="11"/>
+          <text class="t" x="296" y="92" text-anchor="middle">Least RT</text>
+          <text class="s" x="296" y="110" text-anchor="middle">conn × RT → min</text>
+          <rect class="box" x="486" y="16" width="186" height="44" rx="9"/>
+          <text class="t" x="510" y="35">Сервер 1</text>
+          <text class="s" x="510" y="50">50ms · 2 соед.</text>
+          <rect class="busy" x="486" y="76" width="186" height="44" rx="9"/>
+          <text class="t" x="510" y="95">Сервер 2</text>
+          <text class="rs" x="510" y="110">200ms — медленный</text>
+          <rect class="pick" x="486" y="136" width="186" height="44" rx="9"/>
+          <text class="t" x="510" y="155">Сервер 3</text>
+          <text class="gs" x="510" y="170">100ms ✓ лучший score</text>
+        </svg>
+        <p class="schema-cap"><b>Суть:</b> учитываются сразу два фактора — загрузка и скорость. Быстрый, но занятый сервер может проиграть медленному, но свободному.</p>
+      </div>
+      <div class="demo">
+        <div class="servers">
+          <div class="srv" id="lrt-s0"><div class="srv-name">Сервер 1</div><div class="srv-num" id="lrt-n0">0</div><div class="srv-sub" id="lrt-m0">RT 50ms · score 0</div></div>
+          <div class="srv" id="lrt-s1"><div class="srv-name">Сервер 2</div><div class="srv-num" id="lrt-n1">0</div><div class="srv-sub" id="lrt-m1">RT 200ms · score 0</div></div>
+          <div class="srv" id="lrt-s2"><div class="srv-name">Сервер 3</div><div class="srv-num" id="lrt-n2">0</div><div class="srv-sub" id="lrt-m2">RT 100ms · score 0</div></div>
+        </div>
+        <div class="log" id="lrt-log">Сервер 2 медленный (200 мс). Посмотрите, как алгоритм это учитывает.</div>
+        <div class="controls">
+          <button class="btn primary" onclick="lrtSend()">Новый запрос</button>
+          <button class="btn" onclick="lrtBurst()">×6 запросов</button>
+          <button class="btn" onclick="lrtReset()">Сбросить</button>
+        </div>
+      </div>
+      <div class="fit">
+        <div class="fit-card good"><div class="fit-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>подходит</div><div class="fit-text">Highload, где серверы деградируют по-разному; SLA-критичные сервисы</div></div>
+        <div class="fit-card bad"><div class="fit-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>не подходит</div><div class="fit-text">Простые сервисы — избыточная сложность, требует поддержки в балансировщике</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- IP HASH -->
+  <section id="ip-hash">
+    <div class="sec-head"><span class="sec-num">05</span><h2>IP Hash</h2></div>
+    <hr class="divider">
+    <div class="algo">
+      <div class="algo-top">
+        <div>
+          <p class="algo-name">IP Hash (Sticky Sessions)</p>
+          <p class="algo-tag">Один клиент — всегда один и тот же сервер</p>
+        </div>
+        <span class="badge b-sticky">сессионный</span>
+      </div>
+      <div class="formula">server = hash(client_ip) % server_count</div>
+      <p class="explain">IP-адрес клиента хэшируется и определяет сервер. Один пользователь всегда попадает на один и тот же сервер. Нужно, когда состояние сессии хранится локально на сервере — например, файл загружается частями или сессия лежит в памяти, а не в Redis.</p>
+      <div class="schema">
+        <div class="schema-lbl">Как это работает</div>
+        <svg class="dgm" viewBox="0 0 680 188" role="img" aria-label="Схема IP Hash: один клиент всегда на одном сервере">
+          <defs><marker id="m5" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path class="ah" d="M2 1L8 5L2 9"/></marker></defs>
+          <line class="wire" x1="128" y1="48" x2="226" y2="48" marker-end="url(#m5)"/>
+          <line class="wire" x1="360" y1="48" x2="468" y2="48" marker-end="url(#m5)"/>
+          <line class="wire" x1="128" y1="140" x2="226" y2="140" marker-end="url(#m5)"/>
+          <line class="wire" x1="360" y1="140" x2="468" y2="140" marker-end="url(#m5)"/>
+          <rect class="box" x="8" y="28" width="120" height="40" rx="9"/>
+          <text class="t" x="68" y="45" text-anchor="middle">Клиент A</text>
+          <text class="s" x="68" y="59" text-anchor="middle">IP …15</text>
+          <rect class="lb" x="228" y="28" width="132" height="40" rx="10"/>
+          <text class="s" x="294" y="52" text-anchor="middle">hash(IP) % N</text>
+          <rect class="box" x="470" y="28" width="200" height="40" rx="9"/>
+          <text class="t" x="494" y="45">Сервер 1</text>
+          <text class="gs" x="494" y="59">всегда</text>
+          <rect class="box" x="8" y="120" width="120" height="40" rx="9"/>
+          <text class="t" x="68" y="137" text-anchor="middle">Клиент B</text>
+          <text class="s" x="68" y="151" text-anchor="middle">IP …27</text>
+          <rect class="lb" x="228" y="120" width="132" height="40" rx="10"/>
+          <text class="s" x="294" y="144" text-anchor="middle">hash(IP) % N</text>
+          <rect class="box" x="470" y="120" width="200" height="40" rx="9"/>
+          <text class="t" x="494" y="137">Сервер 3</text>
+          <text class="gs" x="494" y="151">всегда</text>
+        </svg>
+        <p class="schema-cap"><b>Суть:</b> функция детерминирована — один и тот же IP всегда даёт один сервер. Платой становится перекос: за общим NAT-адресом весь трафик уйдёт на один сервер.</p>
+      </div>
+      <div class="demo">
+        <div class="servers">
+          <div class="srv" id="ip-s0"><div class="srv-name">Сервер 1</div><div class="srv-num" id="ip-c0">0</div><div class="srv-sub">клиентов</div></div>
+          <div class="srv" id="ip-s1"><div class="srv-name">Сервер 2</div><div class="srv-num" id="ip-c1">0</div><div class="srv-sub">клиентов</div></div>
+          <div class="srv" id="ip-s2"><div class="srv-name">Сервер 3</div><div class="srv-num" id="ip-c2">0</div><div class="srv-sub">клиентов</div></div>
+        </div>
+        <div class="log" id="ip-log">Каждый «клиент» всегда попадёт на один и тот же сервер — проверьте кнопкой повтора.</div>
+        <div class="controls">
+          <button class="btn primary" onclick="ipSend()">Новый клиент</button>
+          <button class="btn accent" onclick="ipRepeat()">Повторный запрос того же клиента</button>
+          <button class="btn" onclick="ipReset()">Сбросить</button>
+        </div>
+      </div>
+      <div class="fit">
+        <div class="fit-card good"><div class="fit-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>подходит</div><div class="fit-text">Сессии в памяти без Redis, multipart-upload, игровые серверы с состоянием</div></div>
+        <div class="fit-card bad"><div class="fit-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>не подходит</div><div class="fit-text">За NAT тысячи пользователей с одним IP — весь трафик уйдёт на один сервер</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- RANDOM -->
+  <section id="random">
+    <div class="sec-head"><span class="sec-num">06</span><h2>Random</h2></div>
+    <hr class="divider">
+    <div class="algo">
+      <div class="algo-top">
+        <div>
+          <p class="algo-name">Random</p>
+          <p class="algo-tag">Случайный выбор сервера</p>
+        </div>
+        <span class="badge b-simple">простой</span>
+      </div>
+      <div class="formula">server = random(0, server_count - 1)</div>
+      <p class="explain">Сервер выбирается случайно. Звучит примитивно, но при большом числе запросов (закон больших чисел) распределение получается практически равномерным — как Round-Robin, но без хранения счётчика. Используется в некоторых P2P- и DNS-балансировщиках.</p>
+      <div class="schema">
+        <div class="schema-lbl">Как это работает</div>
+        <svg class="dgm" viewBox="0 0 680 196" role="img" aria-label="Схема Random: случайный выбор, доли выравниваются">
+          <defs><marker id="m6" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path class="ah" d="M2 1L8 5L2 9"/></marker></defs>
+          <line class="wire" x1="106" y1="98" x2="214" y2="98" marker-end="url(#m6)"/>
+          <line class="fwire" x1="378" y1="98" x2="484" y2="38" marker-end="url(#m6)"/>
+          <line class="fwire" x1="378" y1="98" x2="484" y2="98" marker-end="url(#m6)"/>
+          <line class="fwire" x1="378" y1="98" x2="484" y2="158" marker-end="url(#m6)"/>
+          <rect class="box" x="8" y="76" width="96" height="44" rx="9"/>
+          <text class="t" x="56" y="102" text-anchor="middle">Запрос</text>
+          <rect class="lb" x="216" y="66" width="160" height="64" rx="11"/>
+          <text class="t" x="296" y="92" text-anchor="middle">Random</text>
+          <text class="s" x="296" y="110" text-anchor="middle">random(0, N-1)</text>
+          <rect class="box" x="486" y="16" width="186" height="44" rx="9"/>
+          <text class="t" x="510" y="35">Сервер 1</text>
+          <text class="s" x="510" y="50">≈33% запросов</text>
+          <rect class="box" x="486" y="76" width="186" height="44" rx="9"/>
+          <text class="t" x="510" y="95">Сервер 2</text>
+          <text class="s" x="510" y="110">≈33% запросов</text>
+          <rect class="box" x="486" y="136" width="186" height="44" rx="9"/>
+          <text class="t" x="510" y="155">Сервер 3</text>
+          <text class="s" x="510" y="170">≈33% запросов</text>
+        </svg>
+        <p class="schema-cap"><b>Суть:</b> выбор случайный и без состояния. По закону больших чисел при большом потоке доли серверов выравниваются.</p>
+      </div>
+      <div class="demo">
+        <div class="servers">
+          <div class="srv" id="rnd-s0"><div class="srv-name">Сервер 1</div><div class="srv-num" id="rnd-c0">0</div><div class="srv-sub">запросов</div></div>
+          <div class="srv" id="rnd-s1"><div class="srv-name">Сервер 2</div><div class="srv-num" id="rnd-c1">0</div><div class="srv-sub">запросов</div></div>
+          <div class="srv" id="rnd-s2"><div class="srv-name">Сервер 3</div><div class="srv-num" id="rnd-c2">0</div><div class="srv-sub">запросов</div></div>
+        </div>
+        <div class="log" id="rnd-log">При малом числе запросов распределение неравномерное; при большом — выравнивается.</div>
+        <div class="controls">
+          <button class="btn primary" onclick="rndSend()">Отправить запрос</button>
+          <button class="btn" onclick="rndBurst()">×30 запросов</button>
+          <button class="btn" onclick="rndReset()">Сбросить</button>
+        </div>
+      </div>
+      <div class="fit">
+        <div class="fit-card good"><div class="fit-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>подходит</div><div class="fit-text">Stateless-сервисы с огромным потоком коротких запросов, где важен низкий overhead</div></div>
+        <div class="fit-card bad"><div class="fit-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>не подходит</div><div class="fit-text">Малый трафик — при 10 запросах один сервер может получить 8, другой 1</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- COMPARISON -->
+  <section id="compare">
+    <div class="sec-head"><span class="sec-num">07</span><h2>Сравнение</h2></div>
+    <hr class="divider">
+    <p class="sec-intro">Шесть алгоритмов одним взглядом: что они учитывают, нужно ли им хранить состояние и где их применять.</p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Алгоритм</th><th>Учитывает нагрузку</th><th>Состояние</th><th>Когда использовать</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Round-Robin</td><td><span class="no">нет</span></td><td>счётчик-индекс</td><td>Равные короткие запросы, однородный кластер</td></tr>
+          <tr><td>Weighted RR</td><td><span class="no">нет</span> (учитывает мощность)</td><td>счётчик + веса</td><td>Серверы разной мощности</td></tr>
+          <tr><td>Least Connections</td><td><span class="yes">да</span></td><td>число активных соединений</td><td>Долгие и разные по тяжести соединения</td></tr>
+          <tr><td>Least Response Time</td><td><span class="yes">да</span> (+ скорость)</td><td>соединения + время ответа</td><td>Highload, SLA-критичные сервисы</td></tr>
+          <tr><td>IP Hash</td><td><span class="no">нет</span></td><td>без состояния (детерминизм по IP)</td><td>Sticky sessions, локальное состояние</td></tr>
+          <tr><td>Random</td><td><span class="no">нет</span></td><td>без состояния</td><td>Огромный поток stateless-запросов</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- CHOOSE -->
+  <section id="choose">
+    <div class="sec-head"><span class="sec-num">08</span><h2>Как выбирать на интервью</h2></div>
+    <hr class="divider">
+    <p class="sec-intro">Если спросят, какой алгоритм использовать, сначала задайте встречный вопрос: запросы одинаковые или разные по времени выполнения? Дальше выбор почти очевиден.</p>
+    <div class="decide">
+      <div class="d-row"><div class="d-cond">Запросы <b>короткие и одинаковые</b></div><span class="d-arrow">→</span><span class="d-pick">Round-Robin</span></div>
+      <div class="d-row"><div class="d-cond">Запросы <b>разные по тяжести</b></div><span class="d-arrow">→</span><span class="d-pick">Least Connections</span></div>
+      <div class="d-row"><div class="d-cond">Серверы <b>разной мощности</b></div><span class="d-arrow">→</span><span class="d-pick">Weighted Round-Robin</span></div>
+      <div class="d-row"><div class="d-cond">Нужны <b>sticky sessions</b></div><span class="d-arrow">→</span><span class="d-pick">IP Hash</span></div>
+      <div class="d-row"><div class="d-cond"><b>Максимальная точность</b> на highload</div><span class="d-arrow">→</span><span class="d-pick">Least Response Time</span></div>
+    </div>
+    <div class="callout">
+      <p><strong>В реальных системах часто комбинируют.</strong> Weighted Least Connections — это Least Connections, но с весами. Именно его HAProxy использует по умолчанию для HTTP-трафика: учитывает и вес сервера, и его текущую загрузку.</p>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap foot">
+    <div>Интерактивный конспект по балансировке нагрузки · системный дизайн</div>
+    <a class="totop" href="#top" onclick="window.scrollTo({top:0});return false;">↑ наверх</a>
+  </div>
+</footer>
+
+<script>
+/* ---------- theme ---------- */
+(function(){
+  var root=document.documentElement, key="lb-theme";
+  var saved=null; try{saved=localStorage.getItem(key);}catch(e){}
+  if(!saved){saved=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";}
+  root.setAttribute("data-theme",saved);
+  document.getElementById("themeBtn").addEventListener("click",function(){
+    var next=root.getAttribute("data-theme")==="dark"?"light":"dark";
+    root.setAttribute("data-theme",next);
+    try{localStorage.setItem(key,next);}catch(e){}
+  });
+})();
+
+/* ---------- hero traffic dots ---------- */
+(function(){
+  if(matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  var g=document.getElementById("traffic");
+  var ns="http://www.w3.org/2000/svg";
+  function dot(path,dur,begin){
+    var c=document.createElementNS(ns,"circle");
+    c.setAttribute("r","4.5");c.setAttribute("class","s-dot");
+    var m=document.createElementNS(ns,"animateMotion");
+    m.setAttribute("dur",dur);m.setAttribute("begin",begin);
+    m.setAttribute("repeatCount","indefinite");m.setAttribute("path",path);
+    m.setAttribute("rotate","0");c.appendChild(m);g.appendChild(c);
+  }
+  /* client -> LB (steady stream) */
+  dot("M178,110 L356,110","1.1s","0s");
+  dot("M178,110 L356,110","1.1s","0.55s");
+  /* LB -> each server, staggered to look like round-robin */
+  dot("M486,110 L590,56","0.9s","0s");
+  dot("M486,110 L590,110","0.9s","0.3s");
+  dot("M486,110 L590,164","0.9s","0.6s");
+})();
+
+/* ---------- demo helpers ---------- */
+function hl(prefix,idx,cls){
+  for(var i=0;i<3;i++){
+    var el=document.getElementById(prefix+"-s"+i);
+    el.classList.remove("hit","busy");
+    if(i===idx) el.classList.add(cls||"hit");
+  }
+}
+function pushLog(id,html,arr){
+  arr.push(html); if(arr.length>3) arr.shift();
+  document.getElementById(id).innerHTML=arr.join("<br>");
+}
+
+/* ---------- Round-Robin ---------- */
+var rr={idx:0,cnt:[0,0,0],tot:0,log:[]};
+function rrSend(){var s=rr.idx;rr.tot++;rr.cnt[s]++;hl("rr",s);
+  for(var i=0;i<3;i++)document.getElementById("rr-c"+i).textContent=rr.cnt[i];
+  pushLog("rr-log","Запрос #"+rr.tot+' → <span class="g">Сервер '+(s+1)+"</span>",rr.log);
+  rr.idx=(rr.idx+1)%3;}
+function rrBurst(){var i=0,iv=setInterval(function(){rrSend();if(++i>=10)clearInterval(iv);},80);}
+function rrReset(){rr={idx:0,cnt:[0,0,0],tot:0,log:[]};for(var i=0;i<3;i++){document.getElementById("rr-s"+i).classList.remove("hit");document.getElementById("rr-c"+i).textContent="0";}document.getElementById("rr-log").textContent="Нажмите «Отправить запрос» — увидите, как они идут строго по очереди.";}
+
+/* ---------- Weighted RR ---------- */
+var wrr={cnt:[0,0,0],seq:[],pos:0,tot:0,log:[]};
+[3,2,1].forEach(function(w,i){for(var j=0;j<w;j++)wrr.seq.push(i);});
+function wrrSend(){var s=wrr.seq[wrr.pos%wrr.seq.length];wrr.pos++;wrr.tot++;wrr.cnt[s]++;hl("wrr",s);
+  for(var i=0;i<3;i++)document.getElementById("wrr-c"+i).textContent=wrr.cnt[i];
+  var w=[3,2,1][s];
+  pushLog("wrr-log","Запрос #"+wrr.tot+' → <span class="b">Сервер '+(s+1)+"</span> (вес "+w+")",wrr.log);}
+function wrrBurst(){var i=0,iv=setInterval(function(){wrrSend();if(++i>=12)clearInterval(iv);},80);}
+function wrrReset(){wrr.cnt=[0,0,0];wrr.pos=0;wrr.tot=0;wrr.log=[];for(var i=0;i<3;i++){document.getElementById("wrr-s"+i).classList.remove("hit");document.getElementById("wrr-c"+i).textContent="0";}document.getElementById("wrr-log").textContent="Вес 3 : 2 : 1 — сервер 1 получит половину всего трафика.";}
+
+/* ---------- Least Connections ---------- */
+var lc={conn:[0,0,0],last:-1,tot:0,log:[]};
+function lcSend(){var min=Math.min.apply(null,lc.conn),s=lc.conn.indexOf(min);lc.tot++;lc.conn[s]++;lc.last=s;hl("lc",s);
+  for(var i=0;i<3;i++)document.getElementById("lc-c"+i).textContent=lc.conn[i];
+  pushLog("lc-log","Запрос #"+lc.tot+": мин="+min+' → <span class="g">Сервер '+(s+1)+"</span> (теперь "+lc.conn[s]+")",lc.log);}
+function lcLoad(){lc.conn[1]+=5;document.getElementById("lc-c1").textContent=lc.conn[1];var el=document.getElementById("lc-s1");el.classList.add("busy");
+  pushLog("lc-log",'<span class="r">Сервер 2 перегружен: +5 соединений → '+lc.conn[1]+"</span>",lc.log);
+  setTimeout(function(){el.classList.remove("busy");},1200);}
+function lcFree(){if(lc.last<0)return;if(lc.conn[lc.last]>0){lc.conn[lc.last]--;document.getElementById("lc-c"+lc.last).textContent=lc.conn[lc.last];pushLog("lc-log","Соединение завершено на Сервере "+(lc.last+1)+" (осталось "+lc.conn[lc.last]+")",lc.log);}}
+function lcReset(){lc={conn:[0,0,0],last:-1,tot:0,log:[]};for(var i=0;i<3;i++){document.getElementById("lc-s"+i).classList.remove("hit","busy");document.getElementById("lc-c"+i).textContent="0";}document.getElementById("lc-log").textContent="Нажмите «Загрузить сервер 2», затем «Новый запрос» — увидите, как балансировщик его обходит.";}
+
+/* ---------- Least Response Time ---------- */
+var lrt={cnt:[0,0,0],rt:[50,200,100],tot:0,log:[]};
+function lrtScore(i){return lrt.cnt[i]*lrt.rt[i];}
+function lrtRefresh(){for(var i=0;i<3;i++){document.getElementById("lrt-n"+i).textContent=lrt.cnt[i];document.getElementById("lrt-m"+i).textContent="RT "+lrt.rt[i]+"ms · score "+lrtScore(i);}}
+function lrtSend(){var sc=[lrtScore(0),lrtScore(1),lrtScore(2)],min=Math.min.apply(null,sc),s=sc.indexOf(min);lrt.tot++;lrt.cnt[s]++;hl("lrt",s);lrtRefresh();
+  pushLog("lrt-log","#"+lrt.tot+": score=["+sc.join(", ")+'] → <span class="g">Сервер '+(s+1)+"</span>",lrt.log);}
+function lrtBurst(){var i=0,iv=setInterval(function(){lrtSend();if(++i>=6)clearInterval(iv);},120);}
+function lrtReset(){lrt={cnt:[0,0,0],rt:[50,200,100],tot:0,log:[]};for(var i=0;i<3;i++)document.getElementById("lrt-s"+i).classList.remove("hit");lrtRefresh();document.getElementById("lrt-log").textContent="Сервер 2 медленный (200 мс). Посмотрите, как алгоритм это учитывает.";}
+
+/* ---------- IP Hash ---------- */
+var ip={cnt:[0,0,0],last:null,map:{},num:0,log:[]};
+function ipHash(s){var h=0;for(var i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))%100000;return h%3;}
+function ipSend(){ip.num++;var addr="192.168.1."+ip.num,s=ipHash(addr);ip.last=addr;ip.map[addr]=s;ip.cnt[s]++;hl("ip",s);
+  for(var i=0;i<3;i++)document.getElementById("ip-c"+i).textContent=ip.cnt[i];
+  pushLog("ip-log",'<span class="b">'+addr+"</span> → hash % 3 = "+'<span class="g">Сервер '+(s+1)+"</span>",ip.log);}
+function ipRepeat(){if(!ip.last){pushLog("ip-log",'<span class="r">Сначала добавьте клиента</span>',ip.log);return;}var s=ip.map[ip.last];hl("ip",s);
+  pushLog("ip-log","Повтор "+'<span class="b">'+ip.last+"</span> → снова "+'<span class="g">Сервер '+(s+1)+"</span> ✓",ip.log);}
+function ipReset(){ip={cnt:[0,0,0],last:null,map:{},num:0,log:[]};for(var i=0;i<3;i++){document.getElementById("ip-s"+i).classList.remove("hit");document.getElementById("ip-c"+i).textContent="0";}document.getElementById("ip-log").textContent="Каждый «клиент» всегда попадёт на один и тот же сервер — проверьте кнопкой повтора.";}
+
+/* ---------- Random ---------- */
+var rnd={cnt:[0,0,0],tot:0,log:[]};
+function rndSend(){var s=Math.floor(Math.random()*3);rnd.tot++;rnd.cnt[s]++;hl("rnd",s);
+  for(var i=0;i<3;i++)document.getElementById("rnd-c"+i).textContent=rnd.cnt[i];
+  var pct=rnd.cnt.map(function(c){return Math.round(c/rnd.tot*100)+"%";});
+  pushLog("rnd-log","Запрос #"+rnd.tot+' → <span class="g">Сервер '+(s+1)+"</span> · распределение "+pct.join(" / "),rnd.log);}
+function rndBurst(){var i=0,iv=setInterval(function(){rndSend();if(++i>=30)clearInterval(iv);},40);}
+function rndReset(){rnd={cnt:[0,0,0],tot:0,log:[]};for(var i=0;i<3;i++){document.getElementById("rnd-s"+i).classList.remove("hit");document.getElementById("rnd-c"+i).textContent="0";}document.getElementById("rnd-log").textContent="При малом числе запросов распределение неравномерное; при большом — выравнивается.";}
+
+/* ---------- nav scroll-spy ---------- */
+(function(){
+  var scroller=document.getElementById("chips");
+  var chips=Array.prototype.slice.call(document.querySelectorAll(".chip"));
+  var map={};chips.forEach(function(c){map[c.getAttribute("href").slice(1)]=c;});
+  function centerChip(c){
+    var sr=scroller.getBoundingClientRect(), cr=c.getBoundingClientRect();
+    var delta=(cr.left+cr.width/2)-(sr.left+sr.width/2);
+    if(Math.abs(delta)>4) scroller.scrollBy({left:delta,behavior:"smooth"});
+  }
+  var obs=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if(e.isIntersecting){
+        chips.forEach(function(c){c.classList.remove("active");});
+        var c=map[e.target.id];
+        if(c){c.classList.add("active");centerChip(c);}
+      }
+    });
+  },{rootMargin:"-45% 0px -50% 0px",threshold:0});
+  document.querySelectorAll("section[id]").forEach(function(s){obs.observe(s);});
+})();
+</script>
+</body>
+</html>
